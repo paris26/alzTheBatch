@@ -37,37 +37,6 @@ Educational walkthrough for classifying brain MRI scans into four cognitive-impa
 ## Saved Models
 - Swin checkpoint: `models/swin_alzheimer_classifier.pt` (saved from `VIT-Swin.ipynb`).
 
-## Inference (Swin example)
-```python
-import torch
-import numpy as np
-from PIL import Image
-from transformers import AutoImageProcessor, SwinForImageClassification
-
-LABELS = {0: "Mild Demented", 1: "Moderate Demented", 2: "Non Demented", 3: "Very Mild Demented"}
-ckpt = torch.load("models/swin_alzheimer_classifier.pt", map_location="cpu")
-model = SwinForImageClassification.from_pretrained(
-	ckpt['model_name'],
-	num_labels=len(LABELS),
-	id2label=LABELS,
-	label2id={v: k for k, v in LABELS.items()}
-)
-model.load_state_dict(ckpt['model_state_dict'])
-image_processor = AutoImageProcessor.from_pretrained(ckpt['model_name'])
-
-img = Image.open("path/to/mri.png").convert("L")  # grayscale
-img_rgb = np.stack([np.array(img)] * 3, axis=-1)    # make 3-channel
-inputs = image_processor(images=img_rgb, return_tensors="pt")
-with torch.no_grad():
-	logits = model(**inputs).logits
-pred = logits.argmax(dim=1).item()
-print("Predicted:", LABELS[pred])
-```
-
-## Repro and Troubleshooting
-- Set seeds in notebooks for repeatability; small variations remain due to shuffling and GPU nondeterminism.
-- If CUDA OOM occurs, reduce batch size or image count; ensure mixed precision is off/on per hardware capability.
-- If transformers or datasets fail to download, check Hugging Face authentication and network access.
 
 ## Credits
 - Dataset: `Falah/Alzheimer_MRI` on Hugging Face.
