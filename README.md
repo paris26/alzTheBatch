@@ -14,8 +14,11 @@ Educational walkthrough for classifying brain MRI scans into four cognitive-impa
 - Swin Transformer: `microsoft/swin-base-patch4-window7-224` via Hugging Face; transfer learning; stronger augmentation (MONAI) tailored to minority classes; differential learning rates.
 
 ## Results (validation)
-- Best CNN variant (Combined Strategy): Accuracy ≈ 0.59, Balanced Accuracy ≈ 0.63 (see `comparison_results.csv`).
-- Swin Transformer: higher accuracy/balanced accuracy and per-class F1 than the CNN runs (see `VIT-Swin.ipynb` evaluation section for metrics and plots).
+- CNN results are mixed and depend strongly on the imbalance-handling strategy:
+  - Best CNN raw accuracy: MONAI Augmentation, Accuracy ≈ 0.60, Balanced Accuracy ≈ 0.35, ROC-AUC ≈ 0.80
+  - Best CNN balanced accuracy: Combined Strategy, Accuracy ≈ 0.35, Balanced Accuracy ≈ 0.51, ROC-AUC ≈ 0.65
+- Swin Transformer is clearly stronger overall: Accuracy ≈ 0.88, Balanced Accuracy ≈ 0.90, Specificity Macro ≈ 0.95, ROC-AUC ≈ 0.98.
+- See `comparison_results.csv` and the evaluation sections in the notebooks for the full metric breakdown.
 
 ## How to Run
 1) Install dependencies (Python 3.10+ recommended):
@@ -31,7 +34,7 @@ Educational walkthrough for classifying brain MRI scans into four cognitive-impa
 - Optimization: AdamW; differential LRs for backbone vs classifier head (Swin); ReduceLROnPlateau scheduler; gradient clipping; early stopping.
 
 ## Evaluation and Visuals
-- Metrics: Accuracy, Balanced Accuracy, F1 (macro/weighted), MCC, Cohen's Kappa, per-class precision/recall/F1.
+- Metrics: Accuracy, Balanced Accuracy, Specificity (macro and per class), F1 (macro/weighted), MCC, Cohen's Kappa, ROC-AUC OvR macro, per-class precision/recall/F1/support.
 - Plots (in notebooks): training curves, confusion matrix, sample predictions with confidences.
 
 ## Saved Models

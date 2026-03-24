@@ -1,0 +1,29 @@
+metric_group,metric_name,class_name,cnn_best_combined,swin_transformer,current_value_status,implemented_in_notebooks,needs_notebook_rerun,notes
+overall,accuracy,,0.3477,0.8760,confirmed,yes,no,CNN value confirmed by executed refresh in the conda environment. Swin value confirmed from the saved checkpoint metrics.
+overall,balanced_accuracy,,0.5134,0.9044,confirmed,yes,no,CNN value confirmed by executed refresh in the conda environment. Swin value confirmed from the saved checkpoint metrics.
+overall,specificity_macro,,0.7567,0.9503,confirmed,yes,no,CNN value came directly from the refreshed comparison export. Swin specificity was derived from exact checkpoint precision/recall/support.
+overall,f1_macro,,0.2687,0.8916,confirmed,yes,no,CNN value confirmed by executed refresh in the conda environment. Swin value confirmed from the saved checkpoint metrics.
+overall,f1_weighted,,0.2092,0.8768,confirmed,yes,no,CNN value confirmed by executed refresh in the conda environment. Swin value confirmed from the saved checkpoint metrics.
+overall,mcc,,0.0758,0.7996,confirmed,yes,no,CNN value confirmed by executed refresh in the conda environment. Swin value confirmed from the saved checkpoint metrics.
+overall,kappa,,0.0352,0.7977,confirmed,yes,no,CNN value confirmed by executed refresh in the conda environment. Swin value confirmed from the saved checkpoint metrics.
+overall,roc_auc_ovr_macro,,0.6502,0.9773,confirmed,yes,no,CNN ROC-AUC now confirmed from executed refresh. Swin ROC-AUC confirmed from the saved checkpoint metrics.
+per_class,precision,Mild Demented,0.4651,0.8794,confirmed,yes,no,CNN from refreshed export; Swin from saved checkpoint metrics.
+per_class,recall_sensitivity,Mild Demented,0.1379,0.8552,confirmed,yes,no,Sensitivity is the same as recall.
+per_class,specificity,Mild Demented,0.9738,0.9807,confirmed,yes,no,CNN from refreshed export; Swin specificity derived from exact checkpoint precision/recall/support.
+per_class,f1,Mild Demented,0.2128,0.8671,confirmed,yes,no,CNN from refreshed export; Swin from saved checkpoint metrics.
+per_class,precision,Moderate Demented,0.2174,0.9091,confirmed,yes,no,CNN from refreshed export; Swin from saved checkpoint metrics.
+per_class,recall_sensitivity,Moderate Demented,1.0000,1.0000,confirmed,yes,no,Sensitivity is the same as recall.
+per_class,specificity,Moderate Demented,0.9645,0.9990,confirmed,yes,no,CNN from refreshed export; Swin specificity derived from exact checkpoint precision/recall/support.
+per_class,f1,Moderate Demented,0.3571,0.9524,confirmed,yes,no,CNN from refreshed export; Swin from saved checkpoint metrics.
+per_class,precision,Non Demented,0.0000,0.9307,confirmed,yes,no,CNN from refreshed export; Swin from saved checkpoint metrics.
+per_class,recall_sensitivity,Non Demented,0.0000,0.8635,confirmed,yes,no,Sensitivity is the same as recall.
+per_class,specificity,Non Demented,1.0000,0.9354,confirmed,yes,no,CNN from refreshed export; Swin specificity derived from exact checkpoint precision/recall/support.
+per_class,f1,Non Demented,0.0000,0.8959,confirmed,yes,no,CNN from refreshed export; Swin from saved checkpoint metrics.
+per_class,precision,Very Mild Demented,0.3487,0.8081,confirmed,yes,no,CNN from refreshed export; Swin from saved checkpoint metrics.
+per_class,recall_sensitivity,Very Mild Demented,0.9157,0.8989,confirmed,yes,no,Sensitivity is the same as recall.
+per_class,specificity,Very Mild Demented,0.0883,0.8862,confirmed,yes,no,CNN from refreshed export; Swin specificity derived from exact checkpoint precision/recall/support.
+per_class,f1,Very Mild Demented,0.5050,0.8511,confirmed,yes,no,CNN from refreshed export; Swin from saved checkpoint metrics.
+artifact,confusion_matrix,,available,available,confirmed,yes,no,CNN confusion matrices were regenerated during the executed refresh. Swin confusion matrix remains available in the notebook pipeline.
+artifact,classification_report,,available,available,confirmed,yes,no,CNN per-class metrics were regenerated during the executed refresh. Swin metrics were confirmed from the saved checkpoint.
+missing,pr_auc_ovr_macro,,,,missing,no,yes,Often more informative than ROC-AUC under class imbalance but still not implemented in the notebooks.
+missing,calibration_metric_brier_or_ece,,,,missing,no,yes,Useful if model confidence will be discussed or used clinically.
