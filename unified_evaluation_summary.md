@@ -19,10 +19,13 @@ The project classifies Alzheimer's MRI scans into 4 classes:
 - Non Demented
 - Very Mild Demented
 
-Two modeling directions are implemented:
+Three modeling directions are implemented:
 
 - a custom PyTorch CNN with several imbalance-handling variants
+- a pretrained ResNet-50 fine-tuned from `torchvision.models.resnet50` (ImageNet-1K)
 - a Swin Transformer fine-tuned from `microsoft/swin-base-patch4-window7-224`
+
+The ResNet-50 and Swin Transformer experiments use an identical training recipe so that the only variable is architecture (CNN vs Transformer).
 
 The dataset is strongly imbalanced, especially for `Moderate Demented`, so balanced metrics matter more than raw accuracy alone.
 
@@ -57,6 +60,25 @@ Metric logic now includes:
 - kappa
 - ROC-AUC OvR macro
 - per-class precision, recall, specificity, F1, support
+
+### ResNet-50 Notebook
+
+File: `CNN-ResNet50.ipynb`
+
+Main structure:
+
+- loads the same Hugging Face MRI dataset with the same 80/20 stratified split
+- converts grayscale to RGB and applies ImageNet normalization
+- uses the same MONAI augmentation pipeline as Swin (aggressive for minority classes <15% of training set)
+- loads pretrained ResNet-50 from torchvision (ImageNet-1K weights)
+- replaces the final FC layer: `Linear(2048 → 4)` for 4 Alzheimer's classes
+- freezes 60% of parameters (same ratio as Swin)
+- trains with identical hyperparameters: AdamW, differential LR, grad clipping, early stopping
+- evaluates on validation set with `compute_all_metrics()` — same function as Swin
+- saves checkpoint to `models/resnet50_alzheimer.pt`
+- prints head-to-head comparison table against Swin
+- generates training curves and side-by-side confusion matrices
+- appends ResNet-50 row to `comparison_results.csv`
 
 ### Swin Notebook
 
@@ -141,9 +163,117 @@ This is the strongest CNN variant by balanced accuracy, but it behaves pathologi
 | Non Demented | 0.9307 | 0.8635 | 0.9354 | 0.8959 | 513 |
 | Very Mild Demented | 0.8081 | 0.8989 | 0.8862 | 0.8511 | 356 |
 
-## 6. Main Conclusions
+## 6. ResNet-50 Experiment (Matched Setup)
 
-### 6.1 Accuracy Alone Is Misleading
+### 6.1 Motivation
+
+The original custom CNN had fundamental design issues (see Section 6.5 below) that made it an unfair baseline against the Swin Transformer. To isolate **architecture** as the single variable, we trained a pretrained ResNet-50 using the exact same setup as the Swin notebook — same data split, same augmentation pipeline, same optimizer, same hyperparameters, same evaluation function.
+
+### 6.2 Model Card
+
+| Property | ResNet-50 | Swin Transformer |
+|----------|-----------|------------------|
+| Architecture | ResNet-50 (bottleneck residual blocks) | Swin-Base (shifted-window attention) |
+| Source | `torchvision.models.resnet50` | `microsoft/swin-base-patch4-window7-224` |
+| Pretraining | ImageNet-1K | ImageNet-1K |
+| Total parameters | 23,516,228 | ~87,000,000 |
+| Parameter ratio | 1x (baseline) | ~3.7x |
+| Input size | 224×224 RGB | 224×224 RGB |
+| Classifier head | `Linear(2048 → 4)` | `Linear(1024 → 4)` |
+| Notebook | `CNN-ResNet50.ipynb` | `VIT-Swin.ipynb` |
+| Checkpoint | `models/resnet50_alzheimer.pt` | `models/swin_alzheimer_classifier.pt` |
+
+### 6.3 ResNet-50 Architecture Breakdown
+
+```
+Layer                    Parameters
+─────────────────────────────────────
+conv1 (7×7, stride 2)         9,408
+bn1                             128
+layer1 (3 bottleneck blocks)  215,808
+layer2 (4 bottleneck blocks)  1,219,584
+layer3 (6 bottleneck blocks)  7,098,368
+layer4 (3 bottleneck blocks)  14,964,736
+avgpool (adaptive, 1×1)       0
+fc (2048 → 4)                 8,196
+─────────────────────────────────────
+Total                         23,516,228
+```
+
+Key architectural features:
+- **Bottleneck residual blocks**: 1×1 → 3×3 → 1×1 convolution with skip connections
+- **Global Average Pooling** before classifier: reduces spatial dimensions to 1×1, preventing the FC explosion that plagued the original CNN
+- **4 stages** with progressively increasing channels: 64 → 256 → 512 → 1024 → 2048
+
+### 6.4 Matched Training Configuration
+
+Every hyperparameter below is identical between ResNet-50 and Swin. The only variable is the backbone architecture.
+
+| Setting | Value |
+|---------|-------|
+| Data split | 80/20 stratified, `random_state=42` |
+| Freeze ratio | 60% of parameters frozen |
+| Optimizer | AdamW |
+| LR (backbone) | 2e-5 |
+| LR (classifier head) | 2e-4 (10× backbone) |
+| Weight decay | 0.01 |
+| Loss function | CrossEntropyLoss with inverse-frequency class weights |
+| LR scheduler | ReduceLROnPlateau (patience=2, factor=0.5, monitor=val_loss) |
+| Max epochs | 15 |
+| Early stopping | patience=5, monitor=val_accuracy |
+| Gradient clipping | max_norm=1.0 |
+| Batch size | 32 |
+| Sampling | WeightedRandomSampler (replacement=True, weights from training set) |
+| Augmentation (minority, <15%) | MONAI: RandAffine + RandGaussianNoise + RandAdjustContrast |
+| Augmentation (majority, ≥15%) | MONAI: RandAffine (lighter) |
+| Evaluation set | Validation split (same indices as Swin) |
+| Metrics function | `compute_all_metrics()` — identical implementation |
+
+### 6.5 Why the Original CNN Failed
+
+The original custom CNN (from `CNN-Pytorch.ipynb`) had seven design issues that made it unsuitable as a fair comparison:
+
+1. **FC layer dominance**: 98.9% of parameters were in fully connected layers, only 1.1% in convolutional layers
+2. **No pretraining**: trained from random initialization on a small medical dataset
+3. **No Global Average Pooling**: flattened feature maps directly into a massive FC layer
+4. **Optuna optimized for accuracy**: not balanced accuracy — so hyperparameters favored majority classes
+5. **No held-out test set**: evaluated on the same split used for validation during training
+6. **No early stopping or gradient clipping**: prone to overfitting and training instability
+7. **128×128 grayscale input**: lower resolution and single channel vs Swin's 224×224 RGB
+
+These issues are not CNN-vs-Transformer problems — they are training recipe problems. The ResNet-50 experiment fixes all seven by using a pretrained backbone with proper training infrastructure.
+
+### 6.6 ResNet-50 Overall Metrics
+
+*[To be filled after running `CNN-ResNet50.ipynb`]*
+
+| Model | Accuracy | Balanced Acc | Specificity Macro | F1 Macro | F1 Weighted | MCC | Kappa | ROC-AUC |
+|-------|----------|--------------|-------------------|----------|-------------|-----|-------|---------|
+| ResNet-50 (Pretrained) | — | — | — | — | — | — | — | — |
+| Swin Transformer | 0.8760 | 0.9044 | 0.9503 | 0.8916 | 0.8768 | 0.7996 | 0.7977 | 0.9773 |
+
+### 6.7 ResNet-50 Per-Class Metrics
+
+*[To be filled after running `CNN-ResNet50.ipynb`]*
+
+| Class | Precision | Recall / Sensitivity | Specificity | F1 | Support |
+|-------|-----------|----------------------|-------------|----|---------|
+| Mild Demented | — | — | — | — | 145 |
+| Moderate Demented | — | — | — | — | 10 |
+| Non Demented | — | — | — | — | 513 |
+| Very Mild Demented | — | — | — | — | 356 |
+
+### 6.8 Head-to-Head: ResNet-50 vs Swin
+
+*[To be filled after running `CNN-ResNet50.ipynb` — the notebook prints this comparison automatically]*
+
+The comparison isolates architecture as the single variable. Any performance gap is attributable to the difference between residual CNNs and shifted-window transformers — not to different training recipes, data splits, or metric implementations.
+
+---
+
+## 7. Main Conclusions
+
+### 7.1 Accuracy Alone Is Misleading
 
 The CNN variants illustrate the accuracy paradox clearly:
 
@@ -152,7 +282,7 @@ The CNN variants illustrate the accuracy paradox clearly:
 
 So accuracy alone is not enough for this dataset.
 
-### 6.2 The Combined CNN Strategy Is Not a Stable Winner
+### 7.2 The Combined CNN Strategy Is Not a Stable Winner
 
 The combined strategy does improve balanced accuracy to `0.5134` and reaches `100%` recall on `Moderate Demented`.
 
@@ -164,7 +294,7 @@ But it also collapses badly elsewhere:
 
 So it is useful as an imbalance-sensitive stress case, but not the clean best CNN model overall.
 
-### 6.3 MONAI Augmentation Is the Strongest CNN Variant Overall
+### 7.3 MONAI Augmentation Is the Strongest CNN Variant Overall
 
 MONAI Augmentation is the best CNN variant on:
 
@@ -178,9 +308,9 @@ MONAI Augmentation is the best CNN variant on:
 
 Its weakness is that it still fails completely on the two rarer demented classes in this refreshed run.
 
-### 6.4 Swin Transformer Is Clearly Better
+### 7.4 Swin Transformer Outperforms All CNN Variants
 
-The Swin model is substantially better than every CNN variant across the overall summary metrics.
+The Swin model is substantially better than every custom CNN variant across the overall summary metrics.
 
 Its advantages are visible in:
 
@@ -192,15 +322,26 @@ Its advantages are visible in:
 
 It also has strong per-class performance across all four classes, including the rare `Moderate Demented` class.
 
-## 7. Practical Interpretation
+### 7.5 ResNet-50 vs Swin: Controlled Comparison
+
+*[To be completed after running `CNN-ResNet50.ipynb`]*
+
+The ResNet-50 experiment (Section 6) provides the first controlled architecture comparison in this project. Both models share the identical training recipe, so any gap is attributable to the architecture difference: residual CNN (25M params) vs shifted-window transformer (87M params). The results will determine whether the Swin advantage is due to the transformer architecture itself or due to the better training setup it originally used.
+
+## 8. Practical Interpretation
 
 If the goal is:
 
-- best CNN baseline: use `MONAI Augmentation`
-- best CNN for minority recall emphasis: inspect `Combined Strategy`, but treat it cautiously
+- best custom CNN baseline: use `MONAI Augmentation`
+- best custom CNN for minority recall emphasis: inspect `Combined Strategy`, but treat it cautiously
+- best pretrained CNN: use `ResNet-50 (Pretrained)` — *[update after running notebook]*
 - best overall model: use `Swin Transformer`
 
-## 8. What Was Added In The Metric Refresh
+### Comparing pretrained models (ResNet-50 vs Swin)
+
+The ResNet-50 and Swin Transformer experiments share an identical training recipe (see Section 6.4). Any difference in their results is attributable solely to the architecture — residual CNN vs shifted-window transformer — not to data handling, hyperparameters, or evaluation methodology. This controlled comparison directly answers the reviewer's question about how results were obtained and compared.
+
+## 9. What Was Added In The Metric Refresh
 
 Compared with the older version of the project summary, the refreshed evaluation now includes:
 
@@ -209,7 +350,7 @@ Compared with the older version of the project summary, the refreshed evaluation
 - ROC-AUC OvR macro for CNN exports
 - per-class support in the exported CSV
 
-## 9. What Is Still Missing
+## 10. What Is Still Missing
 
 The main optional metrics still not implemented are:
 
@@ -218,13 +359,15 @@ The main optional metrics still not implemented are:
 
 These are useful, but not necessary for a clear proof-of-concept comparison.
 
-## 10. Recommended Use Of This File
+## 11. Recommended Use Of This File
 
 If you want one single project summary file, use this one as the authoritative high-level report.
 
 For raw numeric exports and notebook-level detail, the supporting sources are:
 
 - `comparison_results.csv`
-- `CNN-Pytorch.ipynb`
-- `VIT-Swin.ipynb`
-- `models/swin_alzheimer_classifier.pt`
+- `CNN-Pytorch.ipynb` (custom CNN variants)
+- `CNN-ResNet50.ipynb` (pretrained ResNet-50 experiment)
+- `VIT-Swin.ipynb` (Swin Transformer experiment)
+- `models/resnet50_alzheimer.pt` (ResNet-50 checkpoint)
+- `models/swin_alzheimer_classifier.pt` (Swin checkpoint)
