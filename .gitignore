@@ -1,3 +1,11 @@
+# Recovered and generated model checkpoints are distributed separately.
+models/*.pt
+models/*.pth
+models/*.ckpt
+models/*.safetensors
+reproducibility_results/
 
-models/swin_alzheimer_classifier.pt
+# Local notebook and Python artifacts.
 /.ipynb_checkpoints/
+__pycache__/
+*.py[cod]
